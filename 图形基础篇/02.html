@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
+  <style>
+    canvas {
+      width: 800px;
+      height: 800px;
+    }
+  </style>
+  <script src="https://d3js.org/d3-hierarchy.v2.min.js"></script>
+</head>
+
+<body>
+  <canvas width="1600" height="1600"></canvas>
+</body>
+<script>
+  (async function () {
+    const dataSource = 'https://s5.ssl.qhres.com/static/b0695e2dd30daa64.json';
+    const data = await (await fetch(dataSource)).json();
+    const regions = d3.hierarchy(data).sum(d => 1).sort((a, b) => b.value - a.value);
+    const pack = d3.pack().size([1600, 1600]).padding(3);
+    const root = pack(regions);
+    console.log(root)
+    const canvas = document.querySelector('canvas');
+    const context = canvas.getContext('2d');
+    const TAU = 2 * Math.PI;
+    // 统计所绘制的城市圆
+    let drawCityList = [];
+    function filterCityList(node) {
+      if (node.children) {
+        for (let i = 0; i < node.children.length; i++) {
+          filterCityList(node.children[i])
+        }
+      } else {
+        drawCityList.push(node)
+      }
+    }
+    filterCityList(root);
+    function draw(ctx, node, { fillStyle = 'rgba(0, 0, 0, 0.2)', textColor = 'white' } = {}) {
+      const children = node.children;
+      // 绘制做外层原型
+      const { x, y, r } = node; ctx.fillStyle = fillStyle; ctx.beginPath();
+      ctx.arc(x, y, r, 0, TAU);
+      ctx.fill();
+
+      if (children) {
+        for (let i = 0; i < children.length; i++) {
+          draw(ctx, children[i]);
+        }
+      } else {
+        const name = node.data.name;
+        ctx.fillStyle = textColor;
+        ctx.font = '1.5rem Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText(name, x, y);
+      }
+    }
+
+    draw(context, root);
+
+    let currentNode = {};
+    function clearCircle() {
+      if (currentNode.x) {
+        const {x,y,r} = currentNode;
+        draw(context,  currentNode,{fillStyle:'#fff'});
+        draw(context,  currentNode);
+        draw(context,  currentNode);
+        draw(context,  currentNode);
+        currentNode = {};
+      }
+    }
+
+    canvas.onmousemove = function (e) {
+      const [x,y] = [e.clientX * 2, e.clientY * 2];
+      for (let i = 0; i < drawCityList.length; i++) {
+        const { x: cityX, y: cityY, r } = drawCityList[i];
+        // 四个点坐标
+        const [left, right, top, bottom] = [cityX - r, cityX + r, cityY - r, cityY + r];
+        // 判断点是否在圆内
+        if (x > left && x < right && y > top && y < bottom) {
+          clearCircle();
+          draw(context,  drawCityList[i],{fillStyle:'#ed715a'});
+          currentNode = drawCityList[i];
+        }
+      }
+    }
+  }());
+</script>
+
+</html>
